@@ -130,6 +130,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://10.214.94.41:3000",
     "http://10.214.94.41:3001",
     "http://10.74.33.41:3000",
+    "http://10.101.196.41:3000",
 ]
 
 ROOT_URLCONF = 'core.urls'

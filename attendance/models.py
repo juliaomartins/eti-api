@@ -100,6 +100,10 @@ class Motivu(models.TextChoices):
 
     FOTO_FALSU = 'FOTO_FALSU', _('Foto falsu')
     DISTANSIA_DOOK = 'DISTANSIA_DOOK', _('Distánsia dook liu husi eskola')
+    #: Both at once -- a photo that is not the teacher, taken away from the
+    #: school. Its own value rather than two rows, because the status it
+    #: produces lives on the day and a day has one reason.
+    HOTU_HOTU = 'HOTU_HOTU', _('Hotu-hotu')
 
 
 #: LORON column -- Python's date.weekday() index -> label used on the sheet.

@@ -88,6 +88,20 @@ class Tipu(models.TextChoices):
     FILA = 'FILA', _('Fila')
 
 
+class Motivu(models.TextChoices):
+    """
+    Why an administrator refused a day's evidence.
+
+    Both are human judgements. FOTO_FALSU always is; DISTANSIA_DOOK is one
+    too, because a punch far from the school is normally refused outright at
+    check-in time -- one stored here means either the geofence was switched
+    off or the fix was poor, and only a person can tell those apart.
+    """
+
+    FOTO_FALSU = 'FOTO_FALSU', _('Foto falsu')
+    DISTANSIA_DOOK = 'DISTANSIA_DOOK', _('Distánsia dook liu husi eskola')
+
+
 #: LORON column -- Python's date.weekday() index -> label used on the sheet.
 LORON = {
     0: _('Segunda-feira'),
@@ -219,6 +233,7 @@ class Prezensa(models.Model):
     #: Re-exported so callers do not need to import the module-level choices.
     Sesaun = Sesaun
     Tipu = Tipu
+    Motivu = Motivu
 
     #: Scheduled times printed in the column headers.
     ORAS_DADER_TAMA = time(8, 0)
@@ -243,6 +258,34 @@ class Prezensa(models.Model):
         choices=Status.choices,
         default=Status.PRESENT,
     )
+
+    # -- Rejeisaun: an administrator refusing the evidence behind a day ------
+    #
+    # The day goes to ABSENT, which is the Status the whole system already
+    # reads as "Falta" -- no new status value, because the report's counter,
+    # the badge and both exports all key on ABSENT.
+    #
+    # The Marka rows are deliberately left alone. They are the evidence the
+    # decision was made from, and this app never deletes a punch.
+
+    rejeisaun_motivu = models.CharField(
+        _('motivu rejeisaun'),
+        max_length=20,
+        choices=Motivu.choices,
+        blank=True,
+    )
+    #: Free text from the administrator. Kept apart from `obs`, which is the
+    #: OBS column of the printed sheet and is not ours to overwrite.
+    rejeisaun_obs = models.TextField(_('observasaun rejeisaun'), blank=True)
+    rejeita_husi = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='prezensa_rejeitadu',
+        verbose_name=_('rejeita husi'),
+        blank=True,
+        null=True,
+    )
+    rejeita_iha = models.DateTimeField(_('rejeita iha'), blank=True, null=True)
     # OBS
     obs = models.TextField(_('obs'), blank=True)
 

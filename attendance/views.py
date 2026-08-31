@@ -1,3 +1,4 @@
+import logging
 from datetime import date, timedelta
 
 from django.conf import settings
@@ -6,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -35,9 +37,12 @@ from .serializers import (
     PrezensaProfesorLoronSerializer,
     PrezensaProfesorSerializer,
     PrezensaSerializer,
+    RejeitaSerializer,
     StatusHasaiSerializer,
     StatusRejistuSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def profesores_rejistu():
@@ -492,6 +497,136 @@ class PrezensaViewSet(mixins.ListModelMixin,
 
         prezensa.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(
+        detail=True,
+        methods=['post', 'delete'],
+        url_path='rejeita',
+        permission_classes=[IsAuthenticated, EhAdmin],
+        # The viewset parses multipart for the two punch endpoints; this one
+        # takes JSON, exactly as `status` above does.
+        parser_classes=[JSONParser, MultiPartParser, FormParser],
+    )
+    def rejeita(self, request, pk=None):
+        """
+        An administrator refuses the evidence behind a day, or takes that
+        refusal back.
+
+        POST   {motivu, obs?, marka?}  -> the day becomes ABSENT ("Falta")
+        DELETE                         -> the day returns to PRESENT
+
+        Deliberately *not* automatic. An out-of-fence punch is already refused
+        at check-in time whenever ESKOLA_OBRIGA_FATIN is on, so a rule here
+        would fire only where the school has turned location policing off; and
+        a poor indoor fix reports 50-100 m of `presizaun` on its own, which
+        would mark honest teachers absent with nobody in the loop. FOTO_FALSU
+        is a judgement no rule can make at all.
+        """
+        # NOT self.get_object(): get_queryset() is scoped to request.user, so
+        # an admin opening somebody else's day would get a 404 from their own
+        # empty queryset rather than the record they can plainly see.
+        prezensa = get_object_or_404(prezensa_kompletu(), pk=pk)
+
+        if request.method == 'POST':
+            return self._rejeita_rejistu(request, prezensa)
+        return self._rejeita_hasai(request, prezensa)
+
+    def _rejeita_rejistu(self, request, prezensa):
+        payload = RejeitaSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        dadus = payload.validated_data
+
+        # Nothing to refuse on a day that was never punched. Such a day is
+        # marked absent through /api/prezensa/status/, which is where a
+        # hand-written absence belongs.
+        if not prezensa.marka.all():
+            return Response(
+                {
+                    'detail': "Loron ne'e la iha marka; la bele rejeita.",
+                    'code': 'la_iha_marka',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        marka_id = dadus.get('marka')
+        if marka_id is not None and not prezensa.marka.filter(pk=marka_id).exists():
+            return Response(
+                {
+                    'detail': "Marka ne'e la pertense ba loron ne'e.",
+                    'code': 'marka_seluk',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        prezensa.status = Prezensa.Status.ABSENT
+        prezensa.rejeisaun_motivu = dadus['motivu']
+        prezensa.rejeisaun_obs = dadus.get('obs', '')
+        prezensa.rejeita_husi = request.user
+        prezensa.rejeita_iha = timezone.now()
+        prezensa.save(update_fields=[
+            'status',
+            'rejeisaun_motivu',
+            'rejeisaun_obs',
+            'rejeita_husi',
+            'rejeita_iha',
+        ])
+
+        logger.warning(
+            'rejeita prezensa: id=%s profesor=%s data=%s motivu=%s admin=%s',
+            prezensa.pk, prezensa.lista.profesor_id, prezensa.data,
+            dadus['motivu'], request.user.pk,
+        )
+
+        # The punches stay. They are the evidence the decision was made from,
+        # and this app never deletes one.
+        prezensa.refresh_from_db()
+        return Response(
+            PrezensaSerializer(prezensa, context={'request': request}).data
+        )
+
+    def _rejeita_hasai(self, request, prezensa):
+        """
+        Take a rejection back.
+
+        Only a day this endpoint rejected may be restored -- the metadata is
+        the proof of that. Without the check, a leave day hand-written as
+        ABSENT through /status/ could be flipped to PRESENT here, erasing an
+        administrator's record through the wrong door.
+        """
+        if not prezensa.rejeisaun_motivu:
+            return Response(
+                {
+                    'detail': "Loron ne'e la rejeita; la iha buat atu hasai.",
+                    'code': 'la_rejeita',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # PRESENT is what the punches imply, and a rejected day always holds
+        # at least one -- the POST above refuses to reject a day without.
+        prezensa.status = Prezensa.Status.PRESENT
+        prezensa.rejeisaun_motivu = ''
+        prezensa.rejeisaun_obs = ''
+        prezensa.rejeita_husi = None
+        prezensa.rejeita_iha = None
+        prezensa.save(update_fields=[
+            'status',
+            'rejeisaun_motivu',
+            'rejeisaun_obs',
+            'rejeita_husi',
+            'rejeita_iha',
+        ])
+
+        logger.warning(
+            'hasai rejeisaun: id=%s profesor=%s data=%s admin=%s',
+            prezensa.pk, prezensa.lista.profesor_id, prezensa.data,
+            request.user.pk,
+        )
+
+        prezensa.refresh_from_db()
+        return Response(
+            PrezensaSerializer(prezensa, context={'request': request}).data
+        )
 
     @action(detail=False, methods=['post'], url_path='checkin', url_name='checkin')
     def checkin(self, request):

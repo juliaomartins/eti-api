@@ -95,6 +95,13 @@ class PrezensaSerializer(serializers.ModelSerializer):
 
     marka = MarkaSerializer(many=True, read_only=True)
 
+    #: Carried on every day so the dashboard's grid can badge a rejected one
+    #: without asking a second time. Null on every day nobody has rejected.
+    rejeisaun_motivu_display = serializers.SerializerMethodField()
+    rejeita_husi_naran = serializers.CharField(
+        source='rejeita_husi.naran_kompletu', read_only=True, default=None
+    )
+
     class Meta:
         model = Prezensa
         fields = [
@@ -109,9 +116,19 @@ class PrezensaSerializer(serializers.ModelSerializer):
             'status',
             'status_display',
             'obs',
+            'rejeisaun_motivu',
+            'rejeisaun_motivu_display',
+            'rejeisaun_obs',
+            'rejeita_husi_naran',
+            'rejeita_iha',
             'marka',
         ]
         read_only_fields = fields
+
+    def get_rejeisaun_motivu_display(self, obj):
+        # Blank rather than the empty string's label, so the client can treat
+        # "not rejected" as a single falsy check.
+        return obj.get_rejeisaun_motivu_display() if obj.rejeisaun_motivu else None
 
 
 class PrezensaOhinSerializer(PrezensaSerializer):
@@ -254,6 +271,21 @@ MANUAL_STATUS = [
     choice for choice in Prezensa.Status.choices
     if choice[0] != Prezensa.Status.PRESENT
 ]
+
+
+class RejeitaSerializer(serializers.Serializer):
+    """
+    POST /api/prezensa/{id}/rejeita/ -- an administrator refusing a day's
+    evidence.
+
+    `marka` is optional and records *which* punch was judged bad. It does not
+    move where the status lives -- that stays on the day, because the printed
+    sheet has one status column per day and the report aggregates per day.
+    """
+
+    motivu = serializers.ChoiceField(choices=Prezensa.Motivu.choices)
+    obs = serializers.CharField(required=False, allow_blank=True, default='')
+    marka = serializers.IntegerField(required=False, allow_null=True)
 
 
 class StatusRejistuSerializer(serializers.Serializer):

@@ -618,7 +618,7 @@ class PrezensaViewSet(mixins.ListModelMixin,
         ])
 
         logger.warning(
-            'hasai rejeisaun: id=%s profesor=%s data=%s admin=%s',
+            'hasai rejeita: id=%s profesor=%s data=%s admin=%s',
             prezensa.pk, prezensa.lista.profesor_id, prezensa.data,
             request.user.pk,
         )

@@ -17,6 +17,11 @@ dashboard never calls those).
 
 ---
 
+> **The machine-checked contract is `docs/api-contract.md`.** It is generated
+> from the URL resolver and the serializers, so where this document and that one
+> disagree, that one is right. This file explains *how the dashboard uses* the
+> API; that one states what the API *is*.
+
 ## 1. Authentication
 
 | Method | Path | Body | Returns |
@@ -351,7 +356,68 @@ Body: `{"profesor": 3, "data": "2026-08-05"}` → **204**, the day row is gone.
 - `400 {code: "iha_marka"}` — the day holds punches, or its status is
   PRESENT. Only hand-written days can be removed.
 
-## 6. System info — `GET /api/konfig/` (any authenticated user)
+## 6. Rejecting a day's evidence — `/api/prezensa/{id}/rejeita/` (admin)
+
+An administrator refuses the evidence behind a day: the day becomes `ABSENT`
+and carries a reason, a note and who decided it.
+
+```
+POST   /api/prezensa/91/rejeita/    {"motivu": "FOTO_FALSU", "obs": "Foto la loos"}
+DELETE /api/prezensa/91/rejeita/    (no body)
+```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `motivu` | `FOTO_FALSU` / `DISTANSIA_DOOK` / `HOTU_HOTU` | **yes** | |
+| `obs` | string | no (default `""`) | the administrator's note |
+| `marka` | integer | no | **validated, then discarded** — see the caveat below |
+
+Both verbs return **200** with the full day object, so the grid can be updated
+from the response without a refetch.
+
+### The five keys this adds to every day object
+
+Present on **every** `PrezensaSerializer` payload — the grid, the modal, the
+reports — not just on rejected days:
+
+| Key | Type | When not rejected |
+| --- | --- | --- |
+| `rejeita_motivu` | one of the three reasons, or `""` | `""` |
+| `rejeita_motivu_display` | string or null — the Tetun label | `null` |
+| `rejeita_obs` | string | `""` |
+| `rejeita_husi_naran` | string or null — the admin's full name | `null` |
+| `rejeita_iha` | ISO timestamp or null | `null` |
+
+> **Renamed 2026-09-01** — was `rejeisaun_motivu`, `rejeisaun_obs` and
+> `rejeisaun_motivu_display`. A hard cutover: the old keys are no longer sent.
+
+`!!rejeita_motivu` is the single check for "is this day rejected". A rejected
+day is `ABSENT` exactly like a hand-written absence, so without this check the
+two are indistinguishable in the grid.
+
+| code | Status | Meaning |
+| --- | --- | --- |
+| `la_iha_marka` | 400 | POST on a day with no punches. A day nobody marked is made absent through `/api/prezensa/status/` instead |
+| `marka_seluk` | 400 | the `marka` id does not belong to this day |
+| `la_rejeita` | 400 | DELETE on a day that was never rejected here. A `LEAVE` day written through `/status/` cannot be flipped to `PRESENT` through this door |
+
+### Caveat — what rejection does **not** do
+
+Verified against the code, because it is commonly described otherwise:
+
+- It is a property of **the day**, not of one punch.
+- `marka` in the request is checked to belong to the day and then **never
+  stored**. Nothing on the punch records that it was the one objected to.
+- **Punch rows are untouched** — `Marka` has no soft-invalidation field.
+- **The slot does not reopen.** The punch survives, so a second punch for the
+  same session is refused with `duplicate`. Do not offer the teacher a
+  "punch again" affordance after a rejection; it cannot succeed.
+
+An open question about whether that is the intended design is recorded in
+`api-contract.md` §6.
+
+
+## 7. System info — `GET /api/konfig/` (any authenticated user)
 
 For the Konfig panel — values now really come from the server.
 
@@ -378,7 +444,7 @@ frontend change.
 
 Read-only; the school's coordinates are deliberately never included.
 
-## 7. Evidence photos
+## 8. Evidence photos
 
 Every punch carries **two** ways to reach its photo:
 
@@ -420,7 +486,7 @@ not.
 inline photo 404s. The download route works either way, since it streams
 through Django.
 
-## 8. Error handling summary
+## 9. Error handling summary
 
 Errors are `400/403/404` with `{detail, code?, ...extra}`:
 
@@ -430,6 +496,9 @@ Errors are `400/403/404` with `{detail, code?, ...extra}`:
 | `invalid_period` | `hotu`, `status` POST | fix pickers |
 | `invalid_profesor` | `hotu`, `status` POST | shouldn't happen from UI |
 | `iha_marka` | `status` POST/DELETE | show conflicting `loron`, offer to view the day |
+| `la_iha_marka` | `rejeita` POST | the day has no punches to refuse — use `status` POST instead |
+| `marka_seluk` | `rejeita` POST | the `marka` id belongs to another day |
+| `la_rejeita` | `rejeita` DELETE | the day was not rejected here; keep the button hidden unless `rejeita_motivu` is set |
 | `password_presiza` / `password_sala` | `profesor` DELETE | keep the modal open, clear both password fields |
 | `rasik` | `profesor` DELETE / reset-password | "La bele … konta rasik.", close the modal |
 | `eh_admin` | `profesor` DELETE / reset-password | admin rows are read-only; hide both buttons |
@@ -442,7 +511,7 @@ Errors are `400/403/404` with `{detail, code?, ...extra}`:
 
 `detail` messages are Tetun and user-displayable as-is.
 
-## 9. Endpoints that exist but the dashboard does not call
+## 10. Endpoints that exist but the dashboard does not call
 
 | Endpoint | Why not |
 | --- | --- |
@@ -462,7 +531,7 @@ browser from §4 rows.
 `bele_checkout`, and the "you must check in first" error is `no_checkin`. The
 older `clock_*` spellings are gone from the wire entirely.
 
-## 10. Not implemented (yet)
+## 11. Not implemented (yet)
 
 - **E-mail delivery** of passwords — neither the initial one nor a reset is
   sent anywhere. Both are handed over in person, which is why each is shown

@@ -97,7 +97,7 @@ class PrezensaSerializer(serializers.ModelSerializer):
 
     #: Carried on every day so the dashboard's grid can badge a rejected one
     #: without asking a second time. Null on every day nobody has rejected.
-    rejeisaun_motivu_display = serializers.SerializerMethodField()
+    rejeita_motivu_display = serializers.SerializerMethodField()
     rejeita_husi_naran = serializers.CharField(
         source='rejeita_husi.naran_kompletu', read_only=True, default=None
     )
@@ -116,19 +116,19 @@ class PrezensaSerializer(serializers.ModelSerializer):
             'status',
             'status_display',
             'obs',
-            'rejeisaun_motivu',
-            'rejeisaun_motivu_display',
-            'rejeisaun_obs',
+            'rejeita_motivu',
+            'rejeita_motivu_display',
+            'rejeita_obs',
             'rejeita_husi_naran',
             'rejeita_iha',
             'marka',
         ]
         read_only_fields = fields
 
-    def get_rejeisaun_motivu_display(self, obj):
+    def get_rejeita_motivu_display(self, obj):
         # Blank rather than the empty string's label, so the client can treat
         # "not rejected" as a single falsy check.
-        return obj.get_rejeisaun_motivu_display() if obj.rejeisaun_motivu else None
+        return obj.get_rejeita_motivu_display() if obj.rejeita_motivu else None
 
 
 class PrezensaOhinSerializer(PrezensaSerializer):

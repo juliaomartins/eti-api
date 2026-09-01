@@ -7,7 +7,7 @@ Data dictionary and ERD for the **actual** PostgreSQL schema behind `eti-api`.
 (`pg_class` / `pg_attribute` / `pg_constraint` on `eti_2026_db`). Where the
 model and the database disagree, the database wins and the difference is noted.
 
-**15 tables, 87 columns.** Six exist because of this project (four written
+**15 tables, 91 columns.** Six exist because of this project (four written
 here, two auto-created by `AbstractUser`); nine come from Django and
 `djangorestframework-simplejwt`.
 
@@ -149,10 +149,21 @@ properties, not columns** — do not go looking for them here.
 | `status` | `varchar(10)` | NOT NULL | `'PRESENT'` (Django) | choices: `PRESENT`, `ABSENT`, `LEAVE`, `MISSION`, `HOLIDAY` | What kind of day it was. **Stored values are English, labels shown to users are Tetun** (`Prezente`, `Falta`, `Lisensa`, `Misaun`, `Feriadu`) — the stored value is API contract, the label is for people. Any punch forces this to `PRESENT`; the other four are written by an administrator over a date range, and that endpoint refuses `PRESENT` because presence may only come from a punch. Renamed from `estadu` in `attendance/0003`, which also converted the stored Tetun values to English in a `RunPython`. |
 | `obs` | `text` | NOT NULL | `''` (Django) | | OBS — the remarks column of the paper sheet. |
 | `lista_id` | `bigint` | NOT NULL | — | **FK → `attendance_listaprezensa(id)`**, `ON DELETE CASCADE` (Django) | The monthly sheet this day belongs to. The teacher is reached through it — there is no direct teacher FK here. |
+| `rejeita_motivu` | `varchar(20)` | NOT NULL | `''` (Django) | choices: `FOTO_FALSU`, `DISTANSIA_DOOK`, `HOTU_HOTU` | Why an administrator refused this day's evidence; `''` on a day nobody refused. `!!rejeita_motivu` is the one check that separates a rejected day from an ordinary absence, since both are `ABSENT`. **Renamed from `rejeisaun_motivu` in `attendance/0007`.** |
+| `rejeita_obs` | `text` | NOT NULL | `''` (Django) | | The administrator's note about the refusal. Kept apart from `obs`, which is the printed OBS column and is not this feature's to overwrite. **Renamed from `rejeisaun_obs` in `attendance/0007`.** |
+| `rejeita_husi_id` | `bigint` | NULL | — | **FK → `accounts_user(id)`**, `ON DELETE SET NULL` (Django) | Which administrator refused it. `SET NULL`, not cascade: the decision outlives the account that made it. |
+| `rejeita_iha` | `timestamptz` | NULL | — | | When the refusal was recorded. Together with `rejeita_husi_id` this is the proof that `DELETE …/rejeita/` may restore the day — a `LEAVE` day written through `/status/` has neither, so it cannot be flipped to `PRESENT` through that door. |
 
 > **Composite unique:** `(lista_id, data)` — `unique_prezensa_lista_data`.
 > One row per day per sheet.
 >
+> **Rejection is a property of the day, not of a punch.** No `attendance_marka`
+> column records it, and the punch rows are deliberately left untouched — they
+> are the evidence the decision rests on. One consequence worth knowing before
+> building UI: because the punch survives, the slot does **not** reopen, and a
+> second punch for the same session is refused with `duplicate`. See
+> `api-contract.md` §6, which records an open question about this.
+
 > **Schema fingerprint:** the `NOT NULL` constraint on `status` is still named
 > `attendance_prezensa_estadu_not_null`. PostgreSQL keeps the constraint's
 > original name through a `RENAME COLUMN`, so the old Tetun name survives in
@@ -286,6 +297,7 @@ erDiagram
     accounts_user ||--o{ attendance_listaprezensa : "profesor_id (CASCADE)"
     attendance_listaprezensa ||--o{ attendance_prezensa : "lista_id (CASCADE)"
     attendance_prezensa ||--o{ attendance_marka : "prezensa_id (CASCADE)"
+    accounts_user ||--o{ attendance_prezensa : "rejeita_husi_id (SET NULL)"
 
     %% ---- JWT tokens ----
     accounts_user ||--o{ token_blacklist_outstandingtoken : "user_id (CASCADE)"
@@ -342,9 +354,13 @@ erDiagram
     attendance_prezensa {
         bigint id PK
         bigint lista_id FK
+        bigint rejeita_husi_id FK "nullable, SET NULL"
         date data "the calendar day"
         varchar(10) status "PRESENT|ABSENT|LEAVE|MISSION|HOLIDAY"
         text obs "remarks"
+        varchar(20) rejeita_motivu "FOTO_FALSU|DISTANSIA_DOOK|HOTU_HOTU"
+        text rejeita_obs "administrator's note"
+        timestamptz rejeita_iha "nullable"
     }
 
     %% unique: (prezensa_id, sesaun, tipu)
@@ -464,6 +480,8 @@ way they do.
 | `attendance/0002_remove_prezensa_foto_dader_fila_and_more` | **Dropped the four time columns and their photo columns from `Prezensa`.** This is the migration that turned times into punches. |
 | `attendance/0003_rename_estadu_status` | Renamed `estadu` → `status` and converted the stored values from Tetun to English in a `RunPython` (reversible). Left the constraint name `..._estadu_not_null` behind. |
 | `attendance/0004_alter_marka_foto` | Switched punch photos to the readable `punch_…` filenames. |
+| `attendance/0005` · `0006` | Added the rejection fields (`rejeisaun_motivu`, `rejeisaun_obs`, `rejeita_husi`, `rejeita_iha`) and widened the reason choices. |
+| `attendance/0007_rename_rejeisaun_motivu_…` | Renamed `rejeisaun_motivu` → `rejeita_motivu` and `rejeisaun_obs` → `rejeita_obs`, so all four rejection fields share one prefix. Two `RenameField` operations — `ALTER TABLE RENAME COLUMN`, no data moved. |
 
 ---
 

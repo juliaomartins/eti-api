@@ -559,14 +559,14 @@ class PrezensaViewSet(mixins.ListModelMixin,
             )
 
         prezensa.status = Prezensa.Status.ABSENT
-        prezensa.rejeisaun_motivu = dadus['motivu']
-        prezensa.rejeisaun_obs = dadus.get('obs', '')
+        prezensa.rejeita_motivu = dadus['motivu']
+        prezensa.rejeita_obs = dadus.get('obs', '')
         prezensa.rejeita_husi = request.user
         prezensa.rejeita_iha = timezone.now()
         prezensa.save(update_fields=[
             'status',
-            'rejeisaun_motivu',
-            'rejeisaun_obs',
+            'rejeita_motivu',
+            'rejeita_obs',
             'rejeita_husi',
             'rejeita_iha',
         ])
@@ -593,7 +593,7 @@ class PrezensaViewSet(mixins.ListModelMixin,
         ABSENT through /status/ could be flipped to PRESENT here, erasing an
         administrator's record through the wrong door.
         """
-        if not prezensa.rejeisaun_motivu:
+        if not prezensa.rejeita_motivu:
             return Response(
                 {
                     'detail': "Loron ne'e la rejeita; la iha buat atu hasai.",
@@ -605,14 +605,14 @@ class PrezensaViewSet(mixins.ListModelMixin,
         # PRESENT is what the punches imply, and a rejected day always holds
         # at least one -- the POST above refuses to reject a day without.
         prezensa.status = Prezensa.Status.PRESENT
-        prezensa.rejeisaun_motivu = ''
-        prezensa.rejeisaun_obs = ''
+        prezensa.rejeita_motivu = ''
+        prezensa.rejeita_obs = ''
         prezensa.rejeita_husi = None
         prezensa.rejeita_iha = None
         prezensa.save(update_fields=[
             'status',
-            'rejeisaun_motivu',
-            'rejeisaun_obs',
+            'rejeita_motivu',
+            'rejeita_obs',
             'rejeita_husi',
             'rejeita_iha',
         ])

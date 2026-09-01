@@ -263,7 +263,7 @@ class Prezensa(models.Model):
         default=Status.PRESENT,
     )
 
-    # -- Rejeisaun: an administrator refusing the evidence behind a day ------
+    # -- Rejeita: an administrator refusing the evidence behind a day ------
     #
     # The day goes to ABSENT, which is the Status the whole system already
     # reads as "Falta" -- no new status value, because the report's counter,
@@ -273,14 +273,14 @@ class Prezensa(models.Model):
     # decision was made from, and this app never deletes a punch.
 
     rejeita_motivu = models.CharField(
-        _('motivu rejeisaun'),
+        _('motivu rejeita'),
         max_length=20,
         choices=Motivu.choices,
         blank=True,
     )
     #: Free text from the administrator. Kept apart from `obs`, which is the
     #: OBS column of the printed sheet and is not ours to overwrite.
-    rejeita_obs = models.TextField(_('observasaun rejeisaun'), blank=True)
+    rejeita_obs = models.TextField(_('observasaun rejeita'), blank=True)
     rejeita_husi = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

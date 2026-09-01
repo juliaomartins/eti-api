@@ -138,6 +138,8 @@ Auth is `Authorization: Bearer <access>` on everything except login/refresh/veri
 | GET | `prezensa/istoria/?profesor=<id>` | one teacher's sheet, paper layout | EhAdmin |
 | POST | `prezensa/status/` | write LEAVE / MISSION / HOLIDAY / ABSENT over a date range | EhAdmin |
 | DELETE | `prezensa/status/` | return a hand-written day to "no record" | EhAdmin |
+| POST | `prezensa/{id}/rejeita/` | refuse a day's evidence — day becomes ABSENT with a reason | EhAdmin |
+| DELETE | `prezensa/{id}/rejeita/` | take that refusal back — day returns to PRESENT | EhAdmin |
 | GET | `profesor/` | roster — teachers **and** admins, deactivated included | EhAdmin |
 | POST | `profesor/` | create an account → `password_inisial`, shown once | EhAdmin |
 | PATCH | `profesor/{id}/` | update, or soft-deactivate with `{is_active: false}` | EhAdmin |
@@ -162,6 +164,7 @@ Always `{"detail": "<Tetun, displayable as-is>", "code": "...", ...extra}`:
 | `password_la_hanesan` · `password_fraku` | the two fields differ, or Django's validators refused it |
 | `rasik` · `eh_admin` | the target is you, or an admin |
 | `password_tuan_sala` · `password_hanesan_tuan` | changing your own password: old one wrong, or new equals old |
+| `la_iha_marka` · `marka_seluk` · `la_rejeita` | rejecting a day: no punches to refuse, the punch belongs elsewhere, or it was never rejected |
 | `token_not_valid` | expired or blacklisted token |
 
 > **Clients: treat `duplicate` as success.** The punch *was* recorded; if the

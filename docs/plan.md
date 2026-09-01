@@ -190,6 +190,7 @@ eti-dili/                          three independent git repositories
 | Irreversible delete behind the admin's own password, cascading to sheets/days/punches **and photo files** | `accounts/views.py` `destroy` |
 | Admin-set password reset (two matching fields) that revokes the teacher's sessions | `accounts/views.py` `reset_password` |
 | Self-service password change for any signed-in account, old password required; the only route by which an ADMIN can change a password | `accounts/views.py` `TrokaPasswordView` |
+| Rejecting a day's evidence — day becomes ABSENT carrying reason, note, who and when; punches deliberately kept | `attendance/views.py` `rejeita` |
 | `eh_admin` / `rasik` guards on both destructive roster actions | `accounts/views.py` `_eh_admin` |
 | Auto-opening monthly sheet + day row on first punch | `attendance/models.py` `PrezensaManager.ba_loron` |
 | Check in / check out with photo + GPS evidence | `attendance/models.py` `checkin` / `checkout` / `_rejistu` |
@@ -679,6 +680,8 @@ below was found by reading the code on **2026-08-10**.
 | 13 | Logout cannot revoke an already-issued access token (≤15 min window) — inherent to stateless JWT, not a defect. |
 | 14 | ~~No self-service password change~~ **Resolved 2026-08-12:** `POST /api/auth/troka-password/` lets any signed-in account change its own password with the old one, and is the only route by which an ADMIN can change a password. |
 | 15 | No frontend tests in either client; `tsc --noEmit` and `lint` are the only gates. |
+| 18 | **Rejection does not reopen the slot.** The punch rows survive a rejection by design, so a second punch for the same session is refused with `duplicate`. The feature is sometimes described as soft-invalidating the punch and letting the teacher punch again — the code does neither. Open question recorded in `docs/api-contract.md` §6. |
+| 19 | `_status_rejistu` writes `status` **and** `obs` over a whole date range and **logs nothing**, unlike the rejection handlers. A punch landing later on such a day resets `status` to PRESENT but leaves `obs` behind, so a fully attended day can carry a leave note. Observed on numeru_id 112, 2026-08-11 and 08-12. |
 | 15a | `User.habilitasaun_literaria` is **vestigial**: on the published roster HABILITASAUN LITERÁRIA is a heading over `nivel_edukasaun` + `area_estudu`, not a column. It is exposed nowhere and always empty — a candidate for removal. |
 | 16 | ~~Two virtualenvs, unverified which is canonical~~ **Settled 2026-08-13:** `eti-api/venv/` is canonical — Python 3.14.3, and it matches every pin in `requirements.txt` exactly. `eti-dili/env/` **does not exist** (no interpreter); the earlier note was wrong. Beware a third environment: a bare `python` on PATH resolves to `C:\Python314` with user site-packages, carrying Django 6.0.3, DRF 3.16.1 and **psycopg2** instead of the pinned 6.0.7 / 3.17.1 / psycopg 3 — tests pass there too, but it is not what the project declares. Always run through `eti-api/venv/Scripts/python.exe`. |
 | 17 | `eti-api/plan.md` (System Flow) overlaps this document. Kept because it explains the request lifecycle in prose; keep both in sync or fold one in. |

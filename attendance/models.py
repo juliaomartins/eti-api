@@ -272,7 +272,7 @@ class Prezensa(models.Model):
     # The Marka rows are deliberately left alone. They are the evidence the
     # decision was made from, and this app never deletes a punch.
 
-    rejeisaun_motivu = models.CharField(
+    rejeita_motivu = models.CharField(
         _('motivu rejeisaun'),
         max_length=20,
         choices=Motivu.choices,
@@ -280,7 +280,7 @@ class Prezensa(models.Model):
     )
     #: Free text from the administrator. Kept apart from `obs`, which is the
     #: OBS column of the printed sheet and is not ours to overwrite.
-    rejeisaun_obs = models.TextField(_('observasaun rejeisaun'), blank=True)
+    rejeita_obs = models.TextField(_('observasaun rejeisaun'), blank=True)
     rejeita_husi = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
